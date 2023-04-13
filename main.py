@@ -6,7 +6,9 @@ import time
 from modules.robot_arm import RobotArm
 from modules.serial_io import ArduinoSerial
 
-SERIAL_PORT = 'COM9'
+# SERIAL_PORT = 'usb:0/140000/0/8/4'
+SERIAL_PORT = 'COM10'
+# SERIAL_PORT = '/dev/serial/by-id/usb-Teensyduino_USB_Serial_1400000-if00'
 
 
 def read_loop(serial: ArduinoSerial):
@@ -14,6 +16,9 @@ def read_loop(serial: ArduinoSerial):
     while True:
         serial.read()
         time.sleep(0.1)  # Sleep to prevent the loop from running too fast
+
+        # Execute any commands received
+        # TODO: Implement command execution
 
 
 def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
@@ -44,17 +49,14 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
 
 if __name__ == '__main__':
     # Create serial connection
-    print('Waiting for serial connection...')
     serial = ArduinoSerial(SERIAL_PORT)
     print('Serial connection established')
 
-    print('Creating robot arm...')
     # Create and initialize robot arm
     robot_arm = RobotArm(serial)
     print('Robot arm initialized')
 
     # Create and run reader thread
-    print('Starting reader thread...')
     read_thread = threading.Thread(target=read_loop, args=(serial,))
     read_thread.start()
     print('Reader thread started')
@@ -62,7 +64,6 @@ if __name__ == '__main__':
     time.sleep(1)  # Sleep to allow the reader thread to start
 
     # Create and run UI thread
-    print('Starting UI thread...')
     ui_thread = threading.Thread(target=ui_loop, args=(serial, robot_arm))
     ui_thread.start()
     print('UI thread started')

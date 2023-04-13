@@ -32,11 +32,13 @@ class ArduinoSerial:
         # Check if there is data in the serial buffer
         if self.ser.in_waiting > 0:
             # Read the data from the serial buffer
-            data = self.ser.readline().decode().strip().split('\n')
+            data = self.ser.read(self.ser.in_waiting)
+            data = data.strip().decode().split('\n')
+            lines = [line.strip() for line in data]
             # Print the data received to the console
-            for line in data:
+            for line in lines:
                 print(f'\u001b[94m<< \'{line}\'\u001b[0m')
-            return data
+            return lines
         else:
             # Return an empty list if there is no data in the serial buffer
             return []
