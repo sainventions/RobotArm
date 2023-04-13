@@ -1,10 +1,9 @@
-from serial_io import ArduinoSerial
+from modules.serial_io import ArduinoSerial
 
 
 class RobotArm:
-    def __init__(self, port: str, baudrate: int = 9600):
-        self.serial = ArduinoSerial(port, baudrate)
-        pass
+    def __init__(self, serial: ArduinoSerial):
+        self.serial = serial
 
     def home(self, axes: list = [1, 2, 3, 4, 5, 6]):
         command = ' '.join(['HOME'] + [str(axis) for axis in axes])

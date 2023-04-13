@@ -1,4 +1,5 @@
 import serial
+import logging
 
 
 class ArduinoSerial:
@@ -6,23 +7,30 @@ class ArduinoSerial:
         self.ser = serial.Serial(port, baudrate)
 
     def send(self, data: str):
+        """Sends data to the serial port"""
+
+        # Send data to the serial port
         self.ser.write(data.encode())
+        # Print the data sent to the console
         print(f'\u001b[32m>> \'{data}\'\u001b[0m')
 
-    def read(self) -> str:
-        data = self.ser.readline().decode().strip()
-        print(f'\u001b[94m<< \'{data}\'\u001b[0m')
-        print('read ')
-        return data
+    def read(self) -> list[str]:
+        """Reads data from the serial buffer and returns it as a list of strings for each line"""
+
+        # Check if there is data in the serial buffer
+        if self.ser.in_waiting > 0:
+            # Read the data from the serial buffer
+            data = self.ser.readline().decode().strip().split('\n')
+            # Print the data received to the console
+            for line in data:
+                print(f'\u001b[94m<< \'{line}\'\u001b[0m')
+            return data
+        else:
+            # Return an empty list if there is no data in the serial buffer
+            return []
 
     def close(self):
+        """Closes the serial connection"""
+
         self.ser.close()
         print('Serial connection closed')
-
-
-if __name__ == '__main__':
-    arduino = ArduinoSerial('COM9')
-    while True:
-        data = input('Enter data: ')
-        arduino.send(data)
-        arduino.read()
