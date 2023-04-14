@@ -8,8 +8,8 @@ public:
     int driverType;
     int stepPin;
     int dirPin;
-    int NegativeLimitPin;
-    int PositiveLimitPin; // -1 if not used
+    int limitPinA;
+    int limitPinB; // -1 if not used
     int dir;
     int homeDir;
     int stepResolution; // Steps per revolution
@@ -30,22 +30,24 @@ public:
     /*
     Crea
     */
-    JointStepper(int driverType, int stepPin, int dirPin, int NegativeLimitPin, int PositiveLimitPin, int dir, int homeDir, int stepResolution, float ratio, float maxPosition, float minPosition, float homePosition)
+    JointStepper(
+        int stepPin, int dirPin, int limitPinA, int limitPinB,
+        int dir, int homeDir,
+        int stepResolution, float ratio,
+        float maxPosition, float minPosition)
     {
-        this->driverType = driverType;
-        this->stepPin = stepPin;
-        this->dirPin = dirPin;
-        this->NegativeLimitPin = NegativeLimitPin;
-        this->PositiveLimitPin = PositiveLimitPin;
-        this->dir = dir;
-        this->homeDir = homeDir;
-        this->stepResolution = stepResolution;
-        this->ratio = ratio;
-        this->maxPosition = maxPosition;
-        this->minPosition = minPosition;
-        this->homePosition = homePosition;
-        this->homed = false;
-        this->position = 0;
+        this->driverType = 1;                  // Type 1; with 2 pins
+        this->stepPin = stepPin;               // Always used
+        this->dirPin = dirPin;                 // Always used
+        this->limitPinA = limitPinA;           // -1 if not used
+        this->limitPinB = limitPinB;           // Always used
+        this->dir = dir;                       // 0 = CW, 1 = CCW
+        this->homeDir = homeDir;               // 0 = CW, 1 = CCW
+        this->stepResolution = stepResolution; // Steps per revolution
+        this->ratio = ratio;                   // Gear ratio
+        this->maxPosition = maxPosition;       // Min Degrees
+        this->minPosition = minPosition;       // Max Degrees
+        this->homed = false;                   // Homed flag
         this->stepper = AccelStepper(driverType, stepPin, dirPin);
     }
 
@@ -54,35 +56,77 @@ public:
     {
         // Move to the limit switch
         stepper.setSpeed(100);
-        while (digitalRead(NegativeLimitPin) == LOW)
+        while (digitalRead(limitPinA) == LOW)
         {
             stepper.runSpeed();
         }
-        Serial.println("Home Sensor Pressed");
-        // Stop the motor
+        // Serial.println("Home Sensor Pressed");
         stepper.stop();
-        // Set the position to the home position
-        position = homePosition;
-        // Set the homed flag to true
+
+        position = 0; // Home position is always 0
         homed = true;
+    }
+
+    void test_360()
+    {
+        stepper.setAcceleration(1000);
+        stepper.setCurrentPosition(0);
+
+        stepper.setMaxSpeed(1000);
+        stepper.move(stepResolution * 16);
+        stepper.runToPosition();
     }
 };
 
+JointStepper dof1(34, 33, 14, -1, 0, 0, 200, 1, 0, 0);
+JointStepper dof2(36, 35, 16, 15, 0, 0, 200, 1, 0, 0);
+JointStepper dof3(38, 37, 18, 17, 0, 0, 200, 1, 0, 0);
+JointStepper dof4(28, 27, 22, -1, 0, 0, 200, 1, 0, 0);
+JointStepper dof5(30, 29, 21, 20, 0, 0, 200, 1, 0, 0);
+JointStepper dof6(32, 31, 19, -1, 0, 0, 200, 1, 0, 0);
+
 void setup()
 {
-    while (digitalRead(4) == LOW)
-    {
-        // do nothing
-    }
-    delay(1000);
     Serial.begin(9600);
-    JointStepper joint1 = JointStepper(1, 2, 3, 4, -1, 0, 0, 0, 0, 0, 0, 0);
-    // Home the joint
-    Serial.println("Homing joint 1");
-    joint1.home();
+    // stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, ratio, maxPosition, minPosition
+    /*
+        |        | **Step** | **Dir** | **Limit_A** | **Limit_B** |
+        |--------|----------|---------|-------------|-------------|
+        | **S1** | 34       | 33      | 14          | -1          |
+        | **S2** | 36       | 35      | 16          | 15          |
+        | **S3** | 38       | 37      | 18          | 17          |
+        | **S4** | 28       | 27      | 22          | -1          |
+        | **S5** | 30       | 29      | 21          | 20          |
+        | **S6** | 32       | 31      | 19          | -1          |
+    */
 }
 
 void loop()
 {
-    // MOGUS
+    // check if data is available
+    if (Serial.available())
+    {
+        // read data
+        String data = Serial.readStringUntil('\n');
+
+        // Execute data command
+        if (data == "HOME")
+        {
+            // Home all joints
+            // dof1.home();
+            // dof2.home();
+            // dof3.home();
+            // dof4.home();
+            // dof5.home();
+            // dof6.home();
+
+            // Send confirmation
+            Serial.println("HOMED");
+        }
+        else if (data == "TEST360")
+        {
+            dof1.test_360();
+            Serial.println("TEST360 DONE");
+        }
+    }
 }

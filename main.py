@@ -31,6 +31,10 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     def test_output():
         serial.send('TESTOUTPUT')
 
+    def test_360():
+        """Tests the 360 degree rotation"""
+        serial.send('TEST360')
+
     # Create the main window and set its properties
     root = tk.Tk()
     root.title("My GUI")
@@ -38,10 +42,12 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     # Create the buttons and assign the functions to be called when clicked
     button1 = tk.Button(root, text='Home Axes', command=home_all)
     button2 = tk.Button(root, text='Test Output', command=test_output)
+    button3 = tk.Button(root, text='Test 360', command=test_360)
 
     # Pack the buttons into the window
     button1.pack()
     button2.pack()
+    button3.pack()
 
     # Run the main loop
     root.mainloop()

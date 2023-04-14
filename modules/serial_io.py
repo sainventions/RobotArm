@@ -16,7 +16,10 @@ class ArduinoSerial:
     """
 
     def __init__(self, port: str, baudrate: int = 9600):
-        self.ser = serial.Serial(port, baudrate)
+        try:
+            self.ser = serial.Serial(port, baudrate)
+        except serial.SerialException:
+            print(f'\u001b[31mFailed to connect to serial port \'{port}\'\u001b[0m')
 
     def send(self, data: str):
         """Sends data to the serial port"""

@@ -21,6 +21,7 @@ class RobotArm:
         Args:
             axes (list): The axes to home (default: [1, 2, 3, 4, 5, 6])
         """
-        command = ' '.join(['HOME'] + [str(axis) for axis in axes])
+        # command = ' '.join(['HOME'] + [str(axis) for axis in axes])
+        command = 'HOME'
         self.serial.send(command)
         #print(f'Axes [{", ".join(str(axis) for axis in axes)}] Homed')
