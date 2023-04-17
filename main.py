@@ -1,4 +1,3 @@
-import logging
 import threading
 import tkinter as tk
 import time
@@ -6,9 +5,7 @@ import time
 from modules.robot_arm import RobotArm
 from modules.serial_io import ArduinoSerial
 
-# SERIAL_PORT = 'usb:0/140000/0/8/4'
 SERIAL_PORT = 'COM10'
-# SERIAL_PORT = '/dev/serial/by-id/usb-Teensyduino_USB_Serial_1400000-if00'
 
 
 def read_loop(serial: ArduinoSerial):
@@ -24,30 +21,50 @@ def read_loop(serial: ArduinoSerial):
 def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     """Creates the GUI and runs the main loop"""
 
-    def home_all():
-        """Homes all axes"""
-        robot_arm.home()
+    def test():
+        serial.send('TEST')
 
-    def test_output():
-        serial.send('TESTOUTPUT')
+    def test2():
+        serial.send('TEST2')
 
-    def test_360():
-        """Tests the 360 degree rotation"""
-        serial.send('TEST360')
+    def stop():
+        serial.send('STOP')
 
     # Create the main window and set its properties
     root = tk.Tk()
-    root.title("My GUI")
+    root.overrideredirect(True)
+    root.wm_attributes("-topmost", True)
 
     # Create the buttons and assign the functions to be called when clicked
-    button1 = tk.Button(root, text='Home Axes', command=home_all)
-    button2 = tk.Button(root, text='Test Output', command=test_output)
-    button3 = tk.Button(root, text='Test 360', command=test_360)
+    button1 = tk.Button(root, text='Test', command=test)
+    button2 = tk.Button(root, text='Test 2', command=test2)
+    button3 = tk.Button(root, text='Stop', command=stop)
 
     # Pack the buttons into the window
     button1.pack()
     button2.pack()
     button3.pack()
+
+    # create an input field
+    command_input = tk.Entry(root)
+    command_input.pack()
+
+    def process_command(event=None):
+        command = command_input.get()
+        serial.send(command)
+        command_input.delete(0, tk.END)
+
+    command_input.bind('<Return>', process_command)
+
+    # center the window on the screen
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    window_width = 200
+    window_height = 100
+    x_coord = (screen_width - window_width) // 2
+    y_coord = (screen_height - window_height) // 2
+    root.geometry("{}x{}+{}+{}".format(window_width,
+                  window_height, x_coord, y_coord))
 
     # Run the main loop
     root.mainloop()

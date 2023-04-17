@@ -19,7 +19,8 @@ class ArduinoSerial:
         try:
             self.ser = serial.Serial(port, baudrate)
         except serial.SerialException:
-            print(f'\u001b[31mFailed to connect to serial port \'{port}\'\u001b[0m')
+            print(
+                f'\u001b[31mFailed to connect to serial port \'{port}\'\u001b[0m')
 
     def send(self, data: str):
         """Sends data to the serial port"""
@@ -27,7 +28,7 @@ class ArduinoSerial:
         # Send data to the serial port
         self.ser.write(data.encode()+b'\n')
         # Print the data sent to the console
-        print(f'\u001b[32m>> \'{data}\'\u001b[0m')
+        print(f'\u001b[32m<< \'{data}\'\u001b[0m')
 
     def read(self) -> list[str]:
         """Reads data from the serial buffer and returns it as a list of strings for each line"""
@@ -40,7 +41,7 @@ class ArduinoSerial:
             lines = [line.strip() for line in data]
             # Print the data received to the console
             for line in lines:
-                print(f'\u001b[94m<< \'{line}\'\u001b[0m')
+                print(f'\u001b[94m>> \'{line}\'\u001b[0m')
             return lines
         else:
             # Return an empty list if there is no data in the serial buffer
