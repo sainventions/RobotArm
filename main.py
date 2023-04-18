@@ -22,28 +22,29 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     """Creates the GUI and runs the main loop"""
 
     def test():
-        serial.send('TEST')
+        serial.send('test')
 
     def test2():
-        serial.send('TEST2')
+        serial.send('test2')
 
     def stop():
-        serial.send('STOP')
+        serial.send('stop')
 
     # Create the main window and set its properties
     root = tk.Tk()
     root.overrideredirect(True)
     root.wm_attributes("-topmost", True)
 
-    # Create the buttons and assign the functions to be called when clicked
-    button1 = tk.Button(root, text='Test', command=test)
-    button2 = tk.Button(root, text='Test 2', command=test2)
-    button3 = tk.Button(root, text='Stop', command=stop)
+    commands = ['test', 'test2', 'stop', 'halt']
 
-    # Pack the buttons into the window
-    button1.pack()
-    button2.pack()
-    button3.pack()
+    def create_command(command):
+        def run_command():
+            serial.send(command)
+        return run_command
+
+    for command in commands:
+        button = tk.Button(root, text=command, command=create_command(command))
+        button.pack()
 
     # create an input field
     command_input = tk.Entry(root)
@@ -60,7 +61,7 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     window_width = 200
-    window_height = 100
+    window_height = 25*len(commands)+25
     x_coord = (screen_width - window_width) // 2
     y_coord = (screen_height - window_height) // 2
     root.geometry("{}x{}+{}+{}".format(window_width,

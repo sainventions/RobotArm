@@ -1,9 +1,10 @@
+// yo copilot /// @breif goes before a function or class
 #include <AccelStepper.h>
 
 /// @brief  Class for controlling a stepper motor for a joint
 class JointStepper
 {
-public:
+public: // TODO: make private and add getters and setters for all variables
     // Static variables
     String name;        // Name of the joint
     int driverType;     // Type 1; with 2 pins
@@ -56,13 +57,6 @@ public:
         this->stepper = AccelStepper(driverType, stepPin, dirPin);
     }
 
-    /// @brief get the current position of the joint in degrees
-    /// @return position in degrees
-    float get_position()
-    {
-        return position;
-    }
-
     /// @brief Home the joint by moving to the limit switch and then back a bit
     void home()
     {
@@ -81,14 +75,14 @@ public:
     }
 
     /// @brief Skip homing the joint
-    void skip_home()
+    void skipHome()
     {
         homed = true;
         Serial.println("WARN: " + name + " Homing skipped");
     }
 
     /// @brief  set the current position of the AccelStepper object to 0 and update the position variable to the current position converted from steps to degrees
-    void record_position()
+    void recordPos()
     {
         position += static_cast<float>(stepper.currentPosition()) / stepsFullRot * 360 * ratio;
         stepper.setCurrentPosition(0);
@@ -114,15 +108,15 @@ public:
         float steps = (target - position) * stepsFullRot / 360 * ratio;
 
         // Move the stepper
-        record_position(); // Record the current position
+        recordPos(); // Record the current position
         stepper.move(steps);
     }
 
     /// @brief Halts the stepper to its current position instantly
     void halt()
     {
-        record_position(); // Record the current position
-        stepper.move(0);   // set target position to current position
+        recordPos();     // Record the current position
+        stepper.move(0); // set target position to current position
     }
 
     void stop()
@@ -158,55 +152,16 @@ public:
     }
 };
 
-void parse_command(String command)
-{
-        if (command == "HOME")
-        {
-            // Home all joints
-            // dof1.home();
-            // dof2.home();
-            // dof3.home();
-            // dof4.home();
-            // dof5.home();
-            // dof6.home();
-
-            // Send confirmation
-            Serial.println("INFO: HOMED");
-        }
-        else if (command == "TEST")
-        {
-            dof1.test();
-            Serial.println("INFO: TEST DONE");
-        }
-        else if (command == "TEST2")
-        {
-            dof1.test2();
-            dof2.test2();
-            Serial.println("INFO: TEST2 DONE");
-        }
-        else if (command == "STOP")
-        {
-            dof1.halt();
-            dof2.halt();
-            Serial.println("INFO: STOP DONE");
-        }
-        else
-        {
-            // Send error
-            Serial.println("ERROR: INVALID COMMAND");
-        }
-}
-
 // stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, maxPosition, minPosition
 /*
-    |    | Step | Dir | Limit_A | Limit_B |
-    |----|------|-----|---------|---------|
-    | S1 | 34   | 33  | 14      | -1      |
-    | S2 | 36   | 35  | 16      | 15      |
-    | S3 | 38   | 37  | 18      | 17      |
-    | S4 | 28   | 27  | 22      | -1      |
-    | S5 | 30   | 29  | 21      | 20      |
-    | S6 | 32   | 31  | 19      | -1      |
+    |    | Step | Dir | LimitA | LimitB |
+    |----|------|-----|--------|--------|
+    | S1 | 34   | 33  | 14     | -1     |
+    | S2 | 36   | 35  | 16     | 15     |
+    | S3 | 38   | 37  | 18     | 17     |
+    | S4 | 28   | 27  | 22     | -1     |
+    | S5 | 30   | 29  | 21     | 20     |
+    | S6 | 32   | 31  | 19     | -1     |
 */
 
 JointStepper dof1("DOF1", 34, 33, 14, -1, 0, 0, 200, 8, 1, 0, 0);
@@ -215,6 +170,54 @@ JointStepper dof3("DOF3", 38, 37, 18, 17, 0, 0, 200, 8, 1, 0, 0);
 JointStepper dof4("DOF4", 28, 27, 22, -1, 0, 0, 200, 8, 1, 0, 0);
 JointStepper dof5("DOF5", 30, 29, 21, 20, 0, 0, 200, 8, 1, 0, 0);
 JointStepper dof6("DOF6", 32, 31, 19, -1, 0, 0, 200, 8, 1, 0, 0);
+
+/// @brief parse and execute a command with passed through values based on the command string
+/// @param command This is the string command that will be parsed
+void parseCommand(String command)
+{
+    int firstSpace = command.indexOf(' ');
+    String commandName = command.substring(0, firstSpace);
+
+    if (commandName == "test")
+    {
+        dof1.test();
+        Serial.println("DOF1 Test Recieved");
+    }
+    else if (commandName == "test2")
+    {
+        dof1.test2();
+        dof2.test2();
+        Serial.println("Test2 Recieved");
+    }
+    else if (commandName == "home")
+    {
+    }
+    else if (commandName == "skipHome")
+    {
+    }
+    else if (commandName == "setTarget")
+    {
+    }
+    else if (commandName == "halt")
+    {
+        dof1.halt();
+        dof2.halt();
+        Serial.println("Halt Recieved");
+    }
+    else if (commandName == "stop")
+    {
+        dof1.stop();
+        dof2.stop();
+        Serial.println("Stop Recieved");
+    }
+    else if (commandName == "run")
+    {
+    }
+    else
+    {
+        Serial.println("ERROR: Command not found");
+    }
+}
 
 void setup()
 {
@@ -228,8 +231,7 @@ void loop()
     {
         // read data
         String data = Serial.readStringUntil('\n');
-
-        
+        parseCommand(data);
     }
 
     dof1.run();
