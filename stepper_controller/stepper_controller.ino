@@ -1,5 +1,6 @@
 // yo copilot /// @breif goes before a function or class
 #include <AccelStepper.h>
+#include <vector>
 
 /// @brief  Class for controlling a stepper motor for a joint
 class JointStepper
@@ -152,6 +153,31 @@ public: // TODO: make private and add getters and setters for all variables
     }
 };
 
+/// @brief Extended String class to add command processing
+class CommandString : public String
+{
+public:
+    CommandString() : String() {}
+    CommandString(String str) : String(str) {}
+
+    // Split the string into substrings using the given delimiter
+    std::vector<CommandString> split(char delimiter)
+    {
+        std::vector<CommandString> substrings;
+        int start = 0;
+        int end = indexOf(delimiter, start);
+        while (end >= 0)
+        {
+            substrings.push_back(substring(start, end - start));
+            start = end + 1;
+            end = indexOf(delimiter, start);
+        }
+        substrings.push_back(substring(start));
+        return substrings;
+    }
+};
+
+// Motor Connections
 // stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, maxPosition, minPosition
 /*
     |    | Step | Dir | LimitA | LimitB |
@@ -172,22 +198,45 @@ JointStepper dof5("DOF5", 30, 29, 21, 20, 0, 0, 200, 8, 1, 0, 0);
 JointStepper dof6("DOF6", 32, 31, 19, -1, 0, 0, 200, 8, 1, 0, 0);
 
 /// @brief parse and execute a command with passed through values based on the command string
-/// @param command This is the string command that will be parsed
-void parseCommand(String command)
+/// @param rawCommand This is the string command that will be parsed
+void parseCommand(String rawCommand)
 {
-    int firstSpace = command.indexOf(' ');
-    String commandName = command.substring(0, firstSpace);
+    // Split the command into commands seperated by ";"
+    CommandString command(rawCommand);
+    command.trim();
+    std::vector<CommandString> commands = command.split(';');
 
+    // Loop through each command
+    for (int i = 0; i < static_cast<int>(commands.size()); i++)
+    {
+        commands[i].trim();
+        // Split the command into the command name and the arguments
+        std::vector<CommandString> arguments = commands[i].split(' ');
+
+        // Execute the command
+        executeCommand(arguments);
+    }
+}
+
+/// @brief execute a command based on the command string
+/// @param arguments This is the vector of arguments that will be passed to the command; format: [commandName, arg1, arg2, ...]
+void executeCommand(std::vector<CommandString> arguments)
+{
+    // Seperate the command name from the arguments
+    String commandName = arguments[0];
+    arguments.erase(arguments.begin());
+
+    // select the command to execute
     if (commandName == "test")
     {
         dof1.test();
-        Serial.println("DOF1 Test Recieved");
+        Serial.println("INFO: Test Recieved");
     }
     else if (commandName == "test2")
     {
         dof1.test2();
         dof2.test2();
-        Serial.println("Test2 Recieved");
+        Serial.println("INFO: Test2 Recieved");
     }
     else if (commandName == "home")
     {
