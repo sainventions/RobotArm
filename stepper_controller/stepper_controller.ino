@@ -18,8 +18,8 @@ public: // TODO: make private and add getters and setters for all variables
     int stepResolution; // Steps per revolution
     int microstep;      // Microstep resolution (1, 2, 4, 8, 16)
     float ratio;        // Gear ratio output/input; ratio of 2 means the output shaft rotates twice as much as the input shaft
-    float maxPosition;  // Max Degrees
     float minPosition;  // Min Degrees
+    float maxPosition;  // Max Degrees
     int stepsFullRot;   // Steps to complete a full rotation of the motor
 
     // Dynamic variables
@@ -35,7 +35,7 @@ public: // TODO: make private and add getters and setters for all variables
         int stepPin, int dirPin, int limitPinA, int limitPinB,
         int dir, int homeDir,
         int stepResolution, int microstep, float ratio,
-        float maxPosition, float minPosition)
+        float minPosition, float maxPosition)
     {
         this->name = name;
         this->driverType = 1;
@@ -48,8 +48,8 @@ public: // TODO: make private and add getters and setters for all variables
         this->stepResolution = stepResolution;
         this->microstep = microstep;
         this->ratio = ratio;
-        this->maxPosition = maxPosition;
         this->minPosition = minPosition;
+        this->maxPosition = maxPosition;
         this->homed = false;
         this->stepsFullRot = stepResolution * microstep;
         // gives steps to complete a full rotation of the output shaft
@@ -67,12 +67,12 @@ public: // TODO: make private and add getters and setters for all variables
         {
             stepper.runSpeed();
         }
-        Serial.println("Home Sensor Pressed");
         halt(); // Stop the motor
-        // move back a bit
+        // TODO: move back a bit
 
         position = 0; // Home position is always 0
         homed = true;
+        Serial.println("INFO: " + name + " Homed");
     }
 
     /// @brief Skip homing the joint
@@ -111,6 +111,22 @@ public: // TODO: make private and add getters and setters for all variables
         // Move the stepper
         recordPos(); // Record the current position
         stepper.move(steps);
+    }
+
+    /// @brief Set the speed of the stepper in degrees per second
+    // TODO: make this a float
+    void setSpeed(float speed)
+    {
+        // stepper.setSpeed(speed * stepsFullRot / 360 * ratio);
+        stepper.setSpeed(speed);
+    }
+
+    /// @brief Set the acceleration of the stepper in degrees per second per second
+    // TODO: make this a float
+    void setAcceleration(float acceleration)
+    {
+        // stepper.setAcceleration(acceleration * stepsFullRot / 360 * ratio);
+        stepper.setAcceleration(acceleration);
     }
 
     /// @brief Halts the stepper to its current position instantly
@@ -153,24 +169,23 @@ public: // TODO: make private and add getters and setters for all variables
     }
 };
 
-/// @brief Extended String class to add command processing
+/// @brief Extended String class to add split() method
 class CommandString : public String
 {
 public:
     CommandString() : String() {}
     CommandString(String str) : String(str) {}
 
-    // Split the string into substrings using the given delimiter
     std::vector<CommandString> split(char delimiter)
     {
         std::vector<CommandString> substrings;
         int start = 0;
-        int end = indexOf(delimiter, start);
-        while (end >= 0)
+        int target = indexOf(delimiter, start);
+        while (target != -1)
         {
-            substrings.push_back(substring(start, end - start));
-            start = end + 1;
-            end = indexOf(delimiter, start);
+            substrings.push_back(substring(start, target));
+            start = target + 1;
+            target = indexOf(delimiter, start);
         }
         substrings.push_back(substring(start));
         return substrings;
@@ -178,7 +193,7 @@ public:
 };
 
 // Motor Connections
-// stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, maxPosition, minPosition
+// stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, minPosition, maxPosition
 /*
     |    | Step | Dir | LimitA | LimitB |
     |----|------|-----|--------|--------|
@@ -190,12 +205,14 @@ public:
     | S6 | 32   | 31  | 19     | -1     |
 */
 
-JointStepper dof1("DOF1", 34, 33, 14, -1, 0, 0, 200, 8, 1, 0, 0);
-JointStepper dof2("DOF2", 36, 35, 16, 15, 0, 0, 200, 8, 1, 0, 0);
-JointStepper dof3("DOF3", 38, 37, 18, 17, 0, 0, 200, 8, 1, 0, 0);
-JointStepper dof4("DOF4", 28, 27, 22, -1, 0, 0, 200, 8, 1, 0, 0);
-JointStepper dof5("DOF5", 30, 29, 21, 20, 0, 0, 200, 8, 1, 0, 0);
-JointStepper dof6("DOF6", 32, 31, 19, -1, 0, 0, 200, 8, 1, 0, 0);
+JointStepper DOF1("DOF1", 34, 33, 14, -1, 0, 0, 200, 8, 1, 0, 360.0);
+JointStepper DOF2("DOF2", 36, 35, 16, 15, 0, 0, 200, 8, 1, 0, 360.0);
+JointStepper DOF3("DOF3", 38, 37, 18, 17, 0, 0, 200, 8, 1, 0, 360.0);
+JointStepper DOF4("DOF4", 28, 27, 22, -1, 0, 0, 200, 8, 1, 0, 360.0);
+JointStepper DOF5("DOF5", 30, 29, 21, 20, 0, 0, 200, 8, 1, 0, 360.0);
+JointStepper DOF6("DOF6", 32, 31, 19, -1, 0, 0, 200, 8, 1, 0, 360.0);
+
+JointStepper *DOFs[7] = {nullptr, &DOF1, &DOF2, &DOF3, &DOF4, &DOF5, &DOF6};
 
 /// @brief parse and execute a command with passed through values based on the command string
 /// @param rawCommand This is the string command that will be parsed
@@ -222,45 +239,112 @@ void parseCommand(String rawCommand)
 /// @param arguments This is the vector of arguments that will be passed to the command; format: [commandName, arg1, arg2, ...]
 void executeCommand(std::vector<CommandString> arguments)
 {
-    // Seperate the command name from the arguments
+    // Prepare the arguments
     String commandName = arguments[0];
     arguments.erase(arguments.begin());
+    int argumentCount = static_cast<int>(arguments.size());
 
-    // select the command to execute
+    // test
     if (commandName == "test")
     {
-        dof1.test();
-        Serial.println("INFO: Test Recieved");
+        Serial.println("INFO: Test\n" + String(argumentCount) + " arguments:");
+        for (int i = 0; i < argumentCount; i++)
+        {
+            Serial.println(arguments[i]);
+        }
     }
-    else if (commandName == "test2")
+
+    // home
+    else if ((commandName == "home" || commandName == "h") && argumentCount >= 1 && argumentCount <= 6)
     {
-        dof1.test2();
-        dof2.test2();
-        Serial.println("INFO: Test2 Recieved");
+        if (argumentCount == 1 && arguments[0] == "all")
+        {
+            for (int i = 1; i <= 6; i++)
+            {
+                DOFs[i]->home();
+            }
+        }
+        else
+        {
+            for (int i = 0; i < argumentCount; i++)
+            {
+                if (String("123456").indexOf(arguments[i].charAt(0)) != -1)
+                {
+                    DOFs[arguments[i].toInt()]->home();
+                }
+            }
+        }
     }
-    else if (commandName == "home")
+
+    // skiphome
+    else if ((commandName == "skiphome" || commandName == "sh") && argumentCount >= 1 && argumentCount <= 6)
     {
+        if (argumentCount == 1 && arguments[0] == "all")
+        {
+            for (int i = 1; i <= 6; i++)
+            {
+                DOFs[i]->skipHome();
+            }
+        }
+        else
+        {
+            for (int i = 0; i < argumentCount; i++)
+            {
+                if (String("123456").indexOf(arguments[i].charAt(0)) != -1)
+                {
+                    DOFs[arguments[i].toInt()]->skipHome();
+                }
+            }
+        }
     }
-    else if (commandName == "skipHome")
+
+    // settarget
+    else if ((commandName == "settarget" || commandName == "st") && argumentCount == 2)
     {
+        if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
+        {
+            DOFs[arguments[0].toInt()]->setTarget(arguments[1].toFloat());
+        }
     }
-    else if (commandName == "setTarget")
+
+    // setspeed
+    else if ((commandName == "setspeed" || commandName == "ss") && argumentCount == 2)
     {
+        if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
+        {
+            DOFs[arguments[0].toInt()]->setSpeed(arguments[1].toFloat());
+        }
     }
-    else if (commandName == "halt")
+
+    // setacceleration
+    else if ((commandName == "setacceleration" || commandName == "sa") && argumentCount == 2)
     {
-        dof1.halt();
-        dof2.halt();
-        Serial.println("Halt Recieved");
+        if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
+        {
+            DOFs[arguments[0].toInt()]->setAcceleration(arguments[1].toFloat());
+        }
     }
-    else if (commandName == "stop")
+
+    // halt
+    else if (commandName == "halt" && argumentCount == 1)
     {
-        dof1.stop();
-        dof2.stop();
-        Serial.println("Stop Recieved");
-    }
-    else if (commandName == "run")
-    {
+        if (argumentCount == 1 && arguments[0] == "all")
+        {
+            for (int i = 1; i <= 6; i++)
+            {
+                DOFs[i]->halt();
+            }
+        }
+        else
+        {
+            for (int i = 0; i < argumentCount; i++)
+            {
+                if (String("123456").indexOf(arguments[i].charAt(0)) != -1)
+                {
+                    DOFs[arguments[i].toInt()]->halt();
+                }
+            }
+        }
     }
     else
     {
@@ -283,6 +367,5 @@ void loop()
         parseCommand(data);
     }
 
-    dof1.run();
-    dof2.run();
+    DOF1.run();
 }
