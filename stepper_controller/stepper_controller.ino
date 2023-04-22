@@ -83,7 +83,7 @@ public: // TODO: make private and add getters and setters for all variables
     }
 
     /// @brief  set the current position of the AccelStepper object to 0 and update the position variable to the current position converted from steps to degrees
-    void recordPos()
+    void updatePos()
     {
         position += static_cast<float>(stepper.currentPosition()) / stepsFullRot * 360 * ratio;
         stepper.setCurrentPosition(0);
@@ -98,56 +98,55 @@ public: // TODO: make private and add getters and setters for all variables
             return;
         }
 
-        // Check if the position is within the limits
+        // Check if the target is within the limits
         if (target > maxPosition || target < minPosition)
         {
             Serial.println("ERROR: " + name + " Out of limits");
             return;
         }
 
-        // Calculate the steps
-        float steps = (target - position) * stepsFullRot / 360 * ratio;
+        // Calculate the steps as a float
+        long steps = static_cast<long>((target - position) / 360 * stepsFullRot * ratio + 0.5);
 
-        // Move the stepper
-        recordPos(); // Record the current position
+        // set the target position
         stepper.move(steps);
     }
 
     /// @brief Set the speed of the stepper in degrees per second
     // TODO: make this a float
-    void setSpeed(float speed)
+    void setSpeed(float floatSpeed)
     {
-        // stepper.setSpeed(speed * stepsFullRot / 360 * ratio);
+        // convert degrees per second to steps per second
+        long speed = static_cast<long>(floatSpeed / 360 * stepsFullRot * ratio + 0.5);
         stepper.setSpeed(speed);
     }
 
     /// @brief Set the acceleration of the stepper in degrees per second per second
     // TODO: make this a float
-    void setAcceleration(float acceleration)
+    void setAcceleration(float floatAcceleration)
     {
-        // stepper.setAcceleration(acceleration * stepsFullRot / 360 * ratio);
+        long acceleration = static_cast<long>(floatAcceleration / 360 * stepsFullRot * ratio + 0.5);
         stepper.setAcceleration(acceleration);
     }
 
     /// @brief Halts the stepper to its current position instantly
     void halt()
     {
-        recordPos();     // Record the current position
-        stepper.move(0); // set target position to current position
+        long currentPos = stepper.currentPosition();
+        stepper.move(currentPos); // set target position to current position
     }
 
-    void stop()
-    {
-        stepper.stop();
-    }
-
-    /// @brief Run the stepper in the event loop. This just passes through to the AccelStepper run() method
+    /// @brief Run the stepper in the event loop. This just passes through to the AccelStepper run() method and updates the position variable
     void run()
     {
+        // Update the position variable
+        position = static_cast<float>(stepper.currentPosition()) / stepsFullRot * 360 / ratio;
+
+        // Run the stepper
         stepper.run();
     }
 
-    /// @brief Test the joint by rotating 16 full rotations. This method is blocking
+    /// @brief Test the joint by rotating 16 full rotations. This method is blocking; only use it for testing
     void test()
     {
         stepper.setCurrentPosition(0);
@@ -156,16 +155,6 @@ public: // TODO: make private and add getters and setters for all variables
 
         stepper.move(stepsFullRot * 16);
         stepper.runToPosition();
-    }
-
-    /// @brief Test 2 steppers at once by rotating them 16 rotations. This will set the speed and acceleration of the stepper and must be used in conjunction with the run() method in an event loop. This method is non-blocking
-    void test2()
-    {
-        stepper.setCurrentPosition(0);
-        stepper.setAcceleration(2000);
-
-        stepper.setMaxSpeed(24000);
-        stepper.move(stepsFullRot * 16);
     }
 };
 
@@ -192,9 +181,9 @@ public:
     }
 };
 
-// Motor Connections
-// stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, minPosition, maxPosition
-/*
+/* Motor Connections
+    stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, minPosition, maxPosition
+
     |    | Step | Dir | LimitA | LimitB |
     |----|------|-----|--------|--------|
     | S1 | 34   | 33  | 14     | -1     |
@@ -304,6 +293,10 @@ void executeCommand(std::vector<CommandString> arguments)
         if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
         {
             DOFs[arguments[0].toInt()]->setTarget(arguments[1].toFloat());
+            Serial.println("INFO: Set target of " + arguments[0] + " to " + arguments[1]);
+        }
+        else{
+            Serial.println("ERROR: Invalid DOF");
         }
     }
 

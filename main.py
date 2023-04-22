@@ -73,15 +73,27 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
 def direct_control_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     '''Runs the direct control loop'''
 
-    last_x = 0
-    while True:
-        x = pyautogui.position()[0]
-        mapped_x = round((x / 3839) * 360, 4)
+    serial.send('sh all')
+    serial.send('setspeed 1 16000;setacceleration 1 8000')
 
+    last_x = 0
+    last_y = 0
+    while True:
+        x, y = pyautogui.position()
+
+        # Map the x coordinate to a value between 0 and 360
+        mapped_x = round((x / 3839) * 360, 4)
         if mapped_x != last_x and mapped_x >= 0 and mapped_x <= 360:
             serial.send(f'st 1 {mapped_x}')
             last_x = mapped_x
-            time.sleep(0.5)
+
+        # Map the y coordinate to a value between 100 and 8000
+        mapped_y = round((y / 2160) * 7900 + 100, 4)
+        if mapped_y != last_y and mapped_y >= 100 and mapped_y <= 8000:
+            serial.send(f'sa 1 {mapped_y}')
+            last_y = mapped_y
+
+        time.sleep(0.1)
 
 
 if __name__ == '__main__':
@@ -106,8 +118,7 @@ if __name__ == '__main__':
     print('UI thread started')
     '''
     # Create and run direct control loop
-    serial.send('sh all')
-    serial.send('setspeed 1 8000;setacceleration 1 8000')
-    direct_control_thread = threading.Thread(target=direct_control_loop, args=(serial, robot_arm))
+    direct_control_thread = threading.Thread(
+        target=direct_control_loop, args=(serial, robot_arm))
     direct_control_thread.start()
     print('Direct control thread started')
