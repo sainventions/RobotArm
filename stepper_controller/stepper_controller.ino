@@ -309,8 +309,8 @@ void executeCommand(std::vector<CommandString> arguments)
         }
     }
 
-    // setacceleration
-    else if ((commandName == "setacceleration" || commandName == "sa") && argumentCount == 2)
+    // setaccel
+    else if ((commandName == "setaccel" || commandName == "sa") && argumentCount == 2)
     {
         if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
         {

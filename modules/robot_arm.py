@@ -23,5 +23,5 @@ class RobotArm:
         """
         # command = ' '.join(['HOME'] + [str(axis) for axis in axes])
         command = 'HOME'
-        self.serial.send(command)
+        self.serial.send_str(command)
         #print(f'Axes [{", ".join(str(axis) for axis in axes)}] Homed')
