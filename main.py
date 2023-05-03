@@ -5,8 +5,9 @@ import pyautogui
 
 from modules.robot_arm import RobotArm
 from modules.serial_io import ArduinoSerial
+from modules.ik2d import ikSolver2D
 
-SERIAL_PORT = 'COM10'
+SERIAL_PORT = 'COM14'
 
 
 def read_loop(serial: ArduinoSerial):
@@ -28,12 +29,11 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     root.wm_attributes('-topmost', True)
 
     commands = [
-        'test',
-        'halt',
-        'skiphome all',
-        'setspeed 1 8000;setacceleration 1 8000',
-        'settarget 360',
-        'settarget 0'
+        'sh all',
+        'ss 1 8000;sa 1 2000;ss 2 8000;sa 2 2000',
+        'st 1 0;st 2 0',
+        'st 1 90;st 2 90',
+        'st 1 180;st 2 180'
     ]
 
     def create_command(command):
@@ -59,8 +59,8 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     # center the window on the screen
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
-    window_width = 200
-    window_height = 25*len(commands)+25
+    window_width = 300
+    window_height = 36*len(commands)+25
     x_coord = (screen_width - window_width) // 2
     y_coord = (screen_height - window_height) // 2
     root.geometry('{}x{}+{}+{}'.format(window_width,
@@ -74,24 +74,33 @@ def direct_control_loop(serial: ArduinoSerial, robot_arm: RobotArm):
     '''Runs the direct control loop'''
 
     serial.send_str('sh all')
-    serial.send_str('setspeed 1 16000;setacceleration 1 8000')
+    serial.send_str('setspeed 1 8000;setaccel 1 150')
+    serial.send_str('setspeed 2 8000;setaccel 2 150')
+
+    # create ik solver
+    ik = ikSolver2D(96, 47)
+    
 
     last_x = 0
     last_y = 0
+
     while True:
         x, y = pyautogui.position()
 
-        # Map the x coordinate to a value between 0 and 360
-        mapped_x = round((x / 3839) * 360, 4)
-        if mapped_x != last_x and mapped_x >= 0 and mapped_x <= 360:
-            serial.send_str(f'st 1 {mapped_x}')
-            last_x = mapped_x
+        if (x != last_x or y != last_y) and (x < 3840 and y < 2160) and (x > 0 and y > 0):
+            # map x to -230 to 230
+            # map y to 0 to 129
+            mapped_x = int((x / 3840) * 250 - 125)
+            mapped_y = int(((2160-y) / 2160) * 129 + 50 + 1)
+            print(x, y, mapped_x, mapped_y)
 
-        # Map the y coordinate to a value between 100 and 8000
-        mapped_y = round((y / 2160) * 7900 + 100, 4)
-        if mapped_y != last_y and mapped_y >= 100 and mapped_y <= 8000:
-            serial.send_str(f'sa 1 {mapped_y}')
-            last_y = mapped_y
+            a1, a2 = ik.solve((mapped_x, mapped_y))
+
+            if not (a1 is None or a2 is None):
+                serial.send_str(f'st 1 {a1};st 2 {a2}')
+
+        last_x = x
+        last_y = y
 
         time.sleep(0.1)
 
@@ -111,14 +120,17 @@ if __name__ == '__main__':
     print('Reader thread started')
 
     time.sleep(1)  # Sleep to allow the reader thread to start
-    '''
-    # Create and run UI thread
-    ui_thread = threading.Thread(target=ui_loop, args=(serial, robot_arm))
-    ui_thread.start()
-    print('UI thread started')
-    '''
-    # Create and run direct control loop
-    direct_control_thread = threading.Thread(
-        target=direct_control_loop, args=(serial, robot_arm))
-    direct_control_thread.start()
-    print('Direct control thread started')
+
+    mode = input('Enter mode: ')
+
+    if mode == 'ui':
+        # Create and run UI thread
+        ui_thread = threading.Thread(target=ui_loop, args=(serial, robot_arm))
+        ui_thread.start()
+        print('UI thread started')
+    else:
+        # Create and run direct control loop
+        direct_control_thread = threading.Thread(
+            target=direct_control_loop, args=(serial, robot_arm))
+        direct_control_thread.start()
+        print('Direct control thread started')

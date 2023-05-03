@@ -2,6 +2,8 @@
 #include <AccelStepper.h>
 #include <vector>
 
+#define BT_SERIAL Serial2 // Pin 7 (RX2) and 8 (TX2)
+
 /// @brief  Class for controlling a stepper motor for a joint
 class JointStepper
 {
@@ -13,8 +15,8 @@ public: // TODO: make private and add getters and setters for all variables
     int dirPin;         // Always used
     int limitPinA;      // -1 if not used
     int limitPinB;      // Always used
-    int dir;            // 0 = CW, 1 = CCW
-    int homeDir;        // 0 = CW, 1 = CCW
+    int dir;            // 1 = CW, -1 = CCW
+    int homeDir;        // 1 = CW, -1 = CCW
     int stepResolution; // Steps per revolution
     int microstep;      // Microstep resolution (1, 2, 4, 8, 16)
     float ratio;        // Gear ratio output/input; ratio of 2 means the output shaft rotates twice as much as the input shaft
@@ -72,21 +74,14 @@ public: // TODO: make private and add getters and setters for all variables
 
         position = 0; // Home position is always 0
         homed = true;
-        Serial.println("INFO: " + name + " Homed");
+        BT_SERIAL.println("INFO: " + name + " Homed");
     }
 
     /// @brief Skip homing the joint
     void skipHome()
     {
         homed = true;
-        Serial.println("WARN: " + name + " Homing skipped");
-    }
-
-    /// @brief  set the current position of the AccelStepper object to 0 and update the position variable to the current position converted from steps to degrees
-    void updatePos()
-    {
-        position += static_cast<float>(stepper.currentPosition()) / stepsFullRot * 360 * ratio;
-        stepper.setCurrentPosition(0);
+        BT_SERIAL.println("WARN: " + name + " Homing skipped");
     }
 
     void setTarget(float target)
@@ -94,22 +89,23 @@ public: // TODO: make private and add getters and setters for all variables
         // Check if homed
         if (!homed)
         {
-            Serial.println("ERROR: " + name + " Not homed");
+            BT_SERIAL.println("ERROR: " + name + " Not homed");
             return;
         }
 
         // Check if the target is within the limits
         if (target > maxPosition || target < minPosition)
         {
-            Serial.println("ERROR: " + name + " Out of limits");
+            BT_SERIAL.println("ERROR: " + name + " Out of limits");
             return;
         }
 
         // Calculate the steps as a float
-        long steps = static_cast<long>((target - position) / 360 * stepsFullRot * ratio + 0.5);
+        long steps = static_cast<long>((target) / 360 * stepsFullRot * ratio + 0.5) * dir;
 
         // set the target position
-        stepper.move(steps);
+        BT_SERIAL.println(name + " " + String(steps) + " " + String(target) + " " + String(position));
+        stepper.moveTo(steps);
     }
 
     /// @brief Set the speed of the stepper in degrees per second
@@ -194,12 +190,12 @@ public:
     | S6 | 32   | 31  | 19     | -1     |
 */
 
-JointStepper DOF1("DOF1", 34, 33, 14, -1, 0, 0, 200, 8, 1, 0, 360.0);
-JointStepper DOF2("DOF2", 36, 35, 16, 15, 0, 0, 200, 8, 1, 0, 360.0);
-JointStepper DOF3("DOF3", 38, 37, 18, 17, 0, 0, 200, 8, 1, 0, 360.0);
-JointStepper DOF4("DOF4", 28, 27, 22, -1, 0, 0, 200, 8, 1, 0, 360.0);
-JointStepper DOF5("DOF5", 30, 29, 21, 20, 0, 0, 200, 8, 1, 0, 360.0);
-JointStepper DOF6("DOF6", 32, 31, 19, -1, 0, 0, 200, 8, 1, 0, 360.0);
+JointStepper DOF1("DOF1", 34, 33, 14, -1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF2("DOF2", 36, 35, 16, 15, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF3("DOF3", 38, 37, 18, 17, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF4("DOF4", 28, 27, 22, -1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF5("DOF5", 30, 29, 21, 20, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF6("DOF6", 32, 31, 19, -1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
 
 JointStepper *DOFs[7] = {nullptr, &DOF1, &DOF2, &DOF3, &DOF4, &DOF5, &DOF6};
 
@@ -236,10 +232,10 @@ void executeCommand(std::vector<CommandString> arguments)
     // test
     if (commandName == "test")
     {
-        Serial.println("INFO: Test\n" + String(argumentCount) + " arguments:");
+        BT_SERIAL.println("INFO: Test\n" + String(argumentCount) + " arguments:");
         for (int i = 0; i < argumentCount; i++)
         {
-            Serial.println(arguments[i]);
+            BT_SERIAL.println(arguments[i]);
         }
     }
 
@@ -293,10 +289,11 @@ void executeCommand(std::vector<CommandString> arguments)
         if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
         {
             DOFs[arguments[0].toInt()]->setTarget(arguments[1].toFloat());
-            Serial.println("INFO: Set target of " + arguments[0] + " to " + arguments[1]);
+            BT_SERIAL.println("INFO: Set target of " + arguments[0] + " to " + arguments[1]);
         }
-        else{
-            Serial.println("ERROR: Invalid DOF");
+        else
+        {
+            BT_SERIAL.println("ERROR: Invalid DOF");
         }
     }
 
@@ -341,18 +338,25 @@ void executeCommand(std::vector<CommandString> arguments)
     }
     else
     {
-        Serial.println("ERROR: Command not found");
+        BT_SERIAL.println("ERROR: Command not found");
     }
 }
 
 void setup()
 {
+    BT_SERIAL.begin(9600);
     Serial.begin(9600);
 }
 
 void loop()
 {
     // check if data is available
+    if (BT_SERIAL.available())
+    {
+        // read data
+        String data = BT_SERIAL.readStringUntil('\n');
+        parseCommand(data);
+    }
     if (Serial.available())
     {
         // read data
@@ -361,4 +365,5 @@ void loop()
     }
 
     DOF1.run();
+    DOF2.run();
 }

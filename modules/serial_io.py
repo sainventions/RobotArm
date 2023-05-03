@@ -104,4 +104,3 @@ class ArduinoSerial:
 
         self.ser.close()
         print('Serial connection closed')
-
