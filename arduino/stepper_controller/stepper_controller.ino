@@ -1,8 +1,7 @@
-// yo copilot /// @breif goes before a function or class
 #include <AccelStepper.h>
 #include <vector>
 
-#define BT_SERIAL Serial2 // Pin 7 (RX2) and 8 (TX2)
+#define LIMIT_SWITCH_ACTIVE HIGH
 
 /// @brief  Class for controlling a stepper motor for a joint
 class JointStepper
@@ -13,15 +12,16 @@ public: // TODO: make private and add getters and setters for all variables
     int driverType;     // Type 1; with 2 pins
     int stepPin;        // Always used
     int dirPin;         // Always used
-    int limitPinA;      // -1 if not used
-    int limitPinB;      // Always used
-    int dir;            // 1 = CW, -1 = CCW
-    int homeDir;        // 1 = CW, -1 = CCW
+    int limitPinA;      // Always used
+    int limitPinB;      // -1 if not used
+    int dir;            // Direction of positive movement 1 = CW, -1 = CCW
+    int homeDir;        // Direction of homing (not relative to actual dir) 1 = CW, -1 = CCW
+    float homePos;      // Position of the limit switch activation
     int stepResolution; // Steps per revolution
     int microstep;      // Microstep resolution (1, 2, 4, 8, 16)
-    float ratio;        // Gear ratio output/input; ratio of 2 means the output shaft rotates twice as much as the input shaft
-    float minPosition;  // Min Degrees
-    float maxPosition;  // Max Degrees
+    float ratio;        // Gear ratio output/input; ratio of 2 means the output shaft rotates half as much as the input shaft (indended for reduction gearboxes)
+    float minPosition;  // Min Degrees (unrestricted if both min and max are 0)
+    float maxPosition;  // Max Degrees (unrestricted if both min and max are 0)
     int stepsFullRot;   // Steps to complete a full rotation of the motor
 
     // Dynamic variables
@@ -35,18 +35,20 @@ public: // TODO: make private and add getters and setters for all variables
     JointStepper(
         String name,
         int stepPin, int dirPin, int limitPinA, int limitPinB,
-        int dir, int homeDir,
+        int dir, int homeDir, float homePos,
         int stepResolution, int microstep, float ratio,
         float minPosition, float maxPosition)
     {
         this->name = name;
-        this->driverType = 1;
+
+        this->driverType = AccelStepper::DRIVER;
         this->stepPin = stepPin;
         this->dirPin = dirPin;
         this->limitPinA = limitPinA;
         this->limitPinB = limitPinB;
         this->dir = dir;
         this->homeDir = homeDir;
+        this->homePos = homePos;
         this->stepResolution = stepResolution;
         this->microstep = microstep;
         this->ratio = ratio;
@@ -58,54 +60,65 @@ public: // TODO: make private and add getters and setters for all variables
 
         // Create the AccelStepper object
         this->stepper = AccelStepper(driverType, stepPin, dirPin);
+
+        // Set the stepper properties
+        stepper.setMaxSpeed(8000);
+        stepper.setAcceleration(1000);
     }
 
     /// @brief Home the joint by moving to the limit switch and then back a bit
     void home()
     {
         // Move to the limit switch
-        stepper.setSpeed(100);
-        while (digitalRead(limitPinA) == LOW)
+        Serial.println("Homing " + name + "...");
+        stepper.setSpeed(1000 * homeDir);
+        stepper.setAcceleration(1000);
+
+        // Move until limit switch is activated
+        while (digitalRead(limitPinA) == LIMIT_SWITCH_ACTIVE)
         {
             stepper.runSpeed();
+            Serial.println("Moving to limit switch");
         }
-        halt(); // Stop the motor
-        // TODO: move back a bit
 
-        position = 0; // Home position is always 0
-        homed = true;
-        BT_SERIAL.println("INFO: " + name + " Homed");
+        Serial.println("Limit switch activated");
+
+        stepper.setSpeed(0); // stop the motor
+        stepper.setCurrentPosition(0);
+
+        // home other direction if exists
+        if (limitPinB != -1)
+        {
+            stepper.setSpeed(1000 * -homeDir);
+            stepper.setAcceleration(1000);
+
+            // Move until limit switch is activated
+            while (digitalRead(limitPinB) == LIMIT_SWITCH_ACTIVE)
+            {
+                stepper.runSpeed();
+                Serial.println("Moving to limit switch");
+            }
+
+            Serial.println("Limit switch activated");
+
+            stepper.setSpeed(0); // stop the motor
+            stepper.setCurrentPosition(0);
+        }
+
+        Serial.println("Homed");
+    }
+
+    /// @brief Move the joint x steps
+    void moveSteps(long steps)
+    {
+        stepper.move(steps);
     }
 
     /// @brief Skip homing the joint
     void skipHome()
     {
         homed = true;
-        BT_SERIAL.println("WARN: " + name + " Homing skipped");
-    }
-
-    void setTarget(float target)
-    {
-        // Check if homed
-        if (!homed)
-        {
-            BT_SERIAL.println("ERROR: " + name + " Not homed");
-            return;
-        }
-
-        // Check if the target is within the limits
-        if (target > maxPosition || target < minPosition)
-        {
-            BT_SERIAL.println("ERROR: " + name + " Out of limits");
-            return;
-        }
-
-        // Calculate the steps as a float
-        long steps = static_cast<long>((target) / 360 * stepsFullRot * ratio + 0.5) * dir;
-
-        // set the target position
-        BT_SERIAL.println(name + " " + String(steps) + " " + String(target) + " " + String(position));
-        stepper.moveTo(steps);
+        Serial.println("WARN: " + name + " Homing skipped");
     }
 
     /// @brief Set the speed of the stepper in degrees per second
@@ -130,29 +143,11 @@ public: // TODO: make private and add getters and setters for all variables
     {
         long currentPos = stepper.currentPosition();
         stepper.move(currentPos); // set target position to current position
-    }
-
-    /// @brief Run the stepper in the event loop. This just passes through to the AccelStepper run() method and updates the position variable
-    void run()
-    {
-        // Update the position variable
-        position = static_cast<float>(stepper.currentPosition()) / stepsFullRot * 360 / ratio;
-
-        // Run the stepper
-        stepper.run();
-    }
-
-    /// @brief Test the joint by rotating 16 full rotations. This method is blocking; only use it for testing
-    void test()
-    {
-        stepper.setCurrentPosition(0);
-        stepper.setAcceleration(2000);
-        stepper.setMaxSpeed(24000);
-
-        stepper.move(stepsFullRot * 16);
-        stepper.runToPosition();
+        stepper.setSpeed(0);      // set speed to 0
     }
 };
+
+#define BT_SERIAL Serial2 // Pin 7 (RX2) and 8 (TX2)
 
 /// @brief Extended String class to add split() method
 class CommandString : public String
@@ -178,7 +173,12 @@ public:
 };
 
 /* Motor Connections
-    stepPin, dirPin, limitPinA, limitPinB, dir, homeDir, stepResolution, microstep, ratio, minPosition, maxPosition
+    Arguments:
+        String name,
+        int stepPin, int dirPin, int limitPinA, int limitPinB,
+        int dir, int homeDir, float homePos,
+        int stepResolution, int microstep, float ratio,
+        float minPosition, float maxPosition
 
     |    | Step | Dir | LimitA | LimitB |
     |----|------|-----|--------|--------|
@@ -190,12 +190,12 @@ public:
     | S6 | 32   | 31  | 19     | -1     |
 */
 
-JointStepper DOF1("DOF1", 34, 33, 14, -1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
-JointStepper DOF2("DOF2", 36, 35, 16, 15, -1, 0, 200, 8, 1.0, 0.0, 360.0);
-JointStepper DOF3("DOF3", 38, 37, 18, 17, -1, 0, 200, 8, 1.0, 0.0, 360.0);
-JointStepper DOF4("DOF4", 28, 27, 22, -1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
-JointStepper DOF5("DOF5", 30, 29, 21, 20, -1, 0, 200, 8, 1.0, 0.0, 360.0);
-JointStepper DOF6("DOF6", 32, 31, 19, -1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF1("DOF1", 34, 33, 14, -1, 1, -1, 90, 200, 8, 23.0, 0.0, 0.0);
+JointStepper DOF2("DOF2", 36, 35, 16, 15, 1, 1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF3("DOF3", 38, 37, 18, 17, 1, -1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF4("DOF4", 28, 27, 22, -1, 1, 1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF5("DOF5", 30, 29, 21, 20, 1, 1, 0, 200, 8, 1.0, 0.0, 360.0);
+JointStepper DOF6("DOF6", 32, 31, 19, -1, 1, 1, 0, 200, 8, 1.0, 0.0, 360.0);
 
 JointStepper *DOFs[7] = {nullptr, &DOF1, &DOF2, &DOF3, &DOF4, &DOF5, &DOF6};
 
@@ -229,18 +229,8 @@ void executeCommand(std::vector<CommandString> arguments)
     arguments.erase(arguments.begin());
     int argumentCount = static_cast<int>(arguments.size());
 
-    // test
-    if (commandName == "test")
-    {
-        BT_SERIAL.println("INFO: Test\n" + String(argumentCount) + " arguments:");
-        for (int i = 0; i < argumentCount; i++)
-        {
-            BT_SERIAL.println(arguments[i]);
-        }
-    }
-
     // home
-    else if ((commandName == "home" || commandName == "h") && argumentCount >= 1 && argumentCount <= 6)
+    if ((commandName == "home" || commandName == "h") && argumentCount >= 1 && argumentCount <= 6)
     {
         if (argumentCount == 1 && arguments[0] == "all")
         {
@@ -259,6 +249,11 @@ void executeCommand(std::vector<CommandString> arguments)
                 }
             }
         }
+    }
+
+    else if ((commandName == "move" || commandName == "m") && argumentCount == 2)
+    {
+        DOFs[arguments[0].toInt()]->moveSteps(arguments[1].toInt());
     }
 
     // skiphome
@@ -280,20 +275,6 @@ void executeCommand(std::vector<CommandString> arguments)
                     DOFs[arguments[i].toInt()]->skipHome();
                 }
             }
-        }
-    }
-
-    // settarget
-    else if ((commandName == "settarget" || commandName == "st") && argumentCount == 2)
-    {
-        if (String("123456").indexOf(arguments[0].charAt(0)) != -1)
-        {
-            DOFs[arguments[0].toInt()]->setTarget(arguments[1].toFloat());
-            BT_SERIAL.println("INFO: Set target of " + arguments[0] + " to " + arguments[1]);
-        }
-        else
-        {
-            BT_SERIAL.println("ERROR: Invalid DOF");
         }
     }
 
@@ -336,25 +317,25 @@ void executeCommand(std::vector<CommandString> arguments)
             }
         }
     }
+
     else
     {
-        BT_SERIAL.println("ERROR: Command not found");
+        Serial.println("ERROR: Command not found");
     }
 }
 
 void setup()
 {
-    BT_SERIAL.begin(9600);
     Serial.begin(9600);
 }
 
 void loop()
 {
     // check if data is available
-    if (BT_SERIAL.available())
+    if (Serial.available())
     {
         // read data
-        String data = BT_SERIAL.readStringUntil('\n');
+        String data = Serial.readStringUntil('\n');
         parseCommand(data);
     }
     if (Serial.available())
@@ -363,7 +344,4 @@ void loop()
         String data = Serial.readStringUntil('\n');
         parseCommand(data);
     }
-
-    DOF1.run();
-    DOF2.run();
 }

@@ -7,7 +7,7 @@ from modules.robot_arm import RobotArm
 from modules.serial_io import ArduinoSerial
 from modules.ik2d import ikSolver2D
 
-SERIAL_PORT = 'COM14'
+SERIAL_PORT = 'COM10'
 
 
 def read_loop(serial: ArduinoSerial):
@@ -30,10 +30,12 @@ def ui_loop(serial: ArduinoSerial, robot_arm: RobotArm):
 
     commands = [
         'sh all',
-        'ss 1 8000;sa 1 2000;ss 2 8000;sa 2 2000',
-        'st 1 0;st 2 0',
-        'st 1 90;st 2 90',
-        'st 1 180;st 2 180'
+        'ss 1 8000;sa 1 2000',
+        'st 1 0',
+        'st 1 90',
+        'st 1 180',
+        'st 1 270',
+        'test'
     ]
 
     def create_command(command):
@@ -121,7 +123,8 @@ if __name__ == '__main__':
 
     time.sleep(1)  # Sleep to allow the reader thread to start
 
-    mode = input('Enter mode: ')
+    #mode = input('Enter mode: ')
+    mode = 'ui'
 
     if mode == 'ui':
         # Create and run UI thread
